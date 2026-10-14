@@ -329,6 +329,32 @@ def get_cities(start: str = "2022-01-01", end: str = "2022-12-31"):
       - ORDER BY revenue DESC
     """
     conn = get_connection()
+    ph = "%s" if DATA_BACKEND == "snowflake" else "?"
 
-    # ── YOUR CODE HERE ────────────────────────────────────────────────────────
-    raise HTTPException(status_code=501, detail="Not implemented yet — your turn!")
+    try:
+        results = execute_query(conn, f"""
+            SELECT
+                c.addr_city AS city,
+                c.addr_state AS state,
+                COUNT(DISTINCT f.order_id) AS order_count,
+                SUM(f.amount) AS revenue
+            FROM fact_orders f
+            JOIN dim_customer c ON f.customer_id = c.customer_id
+            WHERE c.is_current = 1
+              AND f.order_date BETWEEN {ph} AND {ph}
+              AND f.status IN ('delivered', 'shipped')
+            GROUP BY c.addr_city, c.addr_state
+            ORDER BY revenue DESC
+        """, (start, end))
+
+        return [
+            {
+                "city": row["city"],
+                "state": row["state"],
+                "order_count": row["order_count"],
+                "revenue": round(row["revenue"] or 0, 2),
+            }
+            for row in results
+        ]
+    finally:
+        conn.close()

@@ -19,6 +19,16 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import Navbar from '../components/Navbar';
 import { getSummary, getOrders, getCities } from '../utils/api';
 
+function formatCurrency(value) {
+  if (value == null) return '$0.00';
+  return `$${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatNumber(value) {
+  if (value == null) return '0';
+  return Number(value).toLocaleString('en-US');
+}
+
 export default function OrdersView() {
   const [startDate, setStartDate] = useState('2022-01-01');
   const [endDate,   setEndDate]   = useState('2022-12-31');
@@ -30,7 +40,31 @@ export default function OrdersView() {
 
   useEffect(() => { loadData(); }, []);
 
+  function handleStartDateChange(e) {
+    const val = e.target.value;
+    setStartDate(val);
+    if (val && endDate && val > endDate) {
+      setError('End date must be on or after the start date');
+    } else {
+      setError(null);
+    }
+  }
+
+  function handleEndDateChange(e) {
+    const val = e.target.value;
+    setEndDate(val);
+    if (val && startDate && val < startDate) {
+      setError('End date must be on or after the start date');
+    } else {
+      setError(null);
+    }
+  }
+
   async function loadData() {
+    if (startDate && endDate && startDate > endDate) {
+      setError('End date must be on or after the start date');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -57,9 +91,9 @@ export default function OrdersView() {
         {/* ── Filter bar ─────────────────────────────────────────────────── */}
         <div className="filter-bar">
           <label>From</label>
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          <input type="date" value={startDate} onChange={handleStartDateChange} />
           <label>To</label>
-          <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+          <input type="date" value={endDate} onChange={handleEndDateChange} />
           <button className="btn-apply" onClick={loadData}>Apply</button>
         </div>
 
@@ -85,15 +119,21 @@ export default function OrdersView() {
             <div className="stat-row">
               <div className="stat-box">
                 <div className="label">Total Revenue</div>
-                <div className="value">TODO</div>
+                <div className="value">
+                  {summary?.total_revenue != null ? formatCurrency(summary.total_revenue) : '$0.00'}
+                </div>
               </div>
               <div className="stat-box">
                 <div className="label">Total Orders</div>
-                <div className="value">TODO</div>
+                <div className="value">
+                  {summary?.total_orders != null ? formatNumber(summary.total_orders) : '0'}
+                </div>
               </div>
               <div className="stat-box">
                 <div className="label">Unique Customers</div>
-                <div className="value">TODO</div>
+                <div className="value">
+                  {summary?.unique_customers != null ? formatNumber(summary.unique_customers) : '0'}
+                </div>
               </div>
             </div>
 
@@ -105,10 +145,47 @@ export default function OrdersView() {
             */}
             <div className="card" style={{ marginBottom: 20 }}>
               <div className="section-title" style={{ marginBottom: 16 }}>Monthly Revenue</div>
-              {/* TODO: add your chart here */}
-              <div className="loading" style={{ height: 200 }}>
-                Implement the monthly revenue chart using recharts BarChart
-              </div>
+              {/* ResponsiveContainer ensures the chart auto-fits the parent container's width */}
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={orders} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
+                  {/* Subtle horizontal grid lines for readability without visual clutter */}
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+
+                  {/* XAxis maps to the month_name field from the API */}
+                  <XAxis
+                    dataKey="month_name"
+                    stroke="var(--text-secondary)"
+                    fontSize={12}
+                    tickLine={false}
+                  />
+
+                  {/* YAxis formats raw revenue amounts to abbreviated currency (e.g. $10k) */}
+                  <YAxis
+                    stroke="var(--text-secondary)"
+                    fontSize={12}
+                    tickLine={false}
+                    tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                  />
+
+                  {/* Tooltip formats hovered data with full currency formatting */}
+                  <Tooltip
+                    formatter={(val) => [formatCurrency(val), 'Revenue']}
+                    contentStyle={{
+                      backgroundColor: 'var(--bg-card)',
+                      borderColor: 'var(--border)',
+                      borderRadius: 8,
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+
+                  {/* Bar element bound to the revenue dataKey styled with theme accent color */}
+                  <Bar
+                    dataKey="revenue"
+                    fill="var(--accent)"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
 
             {/*
@@ -120,10 +197,55 @@ export default function OrdersView() {
             */}
             <div className="card">
               <div className="section-title" style={{ marginBottom: 16 }}>Revenue by City</div>
-              {/* TODO: add your chart here */}
-              <div className="loading" style={{ height: 200 }}>
-                Implement the cities chart using recharts BarChart with layout="vertical"
-              </div>
+              {/* ResponsiveContainer allows horizontal bar chart to scale responsively */}
+              <ResponsiveContainer width="100%" height={320}>
+                {/* layout="vertical" configures Recharts for horizontal bars (categories on YAxis, values on XAxis) */}
+                <BarChart
+                  data={cities.slice(0, 10)}
+                  layout="vertical"
+                  margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+                >
+                  {/* Vertical grid lines assist in reading numeric values along the horizontal axis */}
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+
+                  {/* XAxis configured as type="number" for numeric revenue scaling */}
+                  <XAxis
+                    type="number"
+                    stroke="var(--text-secondary)"
+                    fontSize={12}
+                    tickLine={false}
+                    tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                  />
+
+                  {/* YAxis configured as type="category" mapping to city names; width allocates room for labels */}
+                  <YAxis
+                    type="category"
+                    dataKey="city"
+                    width={100}
+                    stroke="var(--text-secondary)"
+                    fontSize={12}
+                    tickLine={false}
+                  />
+
+                  {/* Tooltip provides exact formatted currency values on hover */}
+                  <Tooltip
+                    formatter={(val) => [formatCurrency(val), 'Revenue']}
+                    contentStyle={{
+                      backgroundColor: 'var(--bg-card)',
+                      borderColor: 'var(--border)',
+                      borderRadius: 8,
+                      color: 'var(--text-primary)',
+                    }}
+                  />
+
+                  {/* Horizontal bars with right-side rounded corners using theme secondary/blue color */}
+                  <Bar
+                    dataKey="revenue"
+                    fill="var(--blue)"
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </>
         )}
