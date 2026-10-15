@@ -43,7 +43,9 @@ export default function OrdersView() {
   function handleStartDateChange(e) {
     const val = e.target.value;
     setStartDate(val);
-    if (val && endDate && val > endDate) {
+    if (!val || !endDate) {
+      setError('Please select both start date and end date');
+    } else if (val > endDate) {
       setError('End date must be on or after the start date');
     } else {
       setError(null);
@@ -53,7 +55,9 @@ export default function OrdersView() {
   function handleEndDateChange(e) {
     const val = e.target.value;
     setEndDate(val);
-    if (val && startDate && val < startDate) {
+    if (!startDate || !val) {
+      setError('Please select both start date and end date');
+    } else if (startDate > val) {
       setError('End date must be on or after the start date');
     } else {
       setError(null);
@@ -61,7 +65,11 @@ export default function OrdersView() {
   }
 
   async function loadData() {
-    if (startDate && endDate && startDate > endDate) {
+    if (!startDate || !endDate) {
+      setError('Please select both start date and end date');
+      return;
+    }
+    if (startDate > endDate) {
       setError('End date must be on or after the start date');
       return;
     }
